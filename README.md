@@ -1,2 +1,3 @@
 # devcamp
-teaching html + css + js from zero to hero
+
+Main project. The original devcamp teaching files (HTML/CSS/JS) are kept in [`archive/`](archive/).
