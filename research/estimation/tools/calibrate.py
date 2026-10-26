@@ -7,19 +7,20 @@ Output: per-category table (n, bias, factor, sigma, shrunk factor, P10/P50/P90 m
         MdMRE, PRED(25), PRED(50)) and an optional Monte Carlo forecast for a new plan.
 
   python3 -I calibrate.py tasks.csv
+  python3 -I calibrate.py tasks.csv --est-col est_method_p50   # any estimate column
   python3 -I calibrate.py tasks.csv --plan "dashboard:240,api:120,api:60"   # naive minutes per item
 """
 import argparse, csv, math, random, statistics as st
 from collections import defaultdict
 
 
-def load(path):
+def load(path, est_col="est_naive_min", act_col="actual_active_min"):
     rows = []
     for r in csv.DictReader(open(path, encoding="utf-8")):
         try:
             if str(r.get("include", "1")).strip() in ("0", "false", "no"):
                 continue
-            e, a = float(r["est_naive_min"]), float(r["actual_active_min"])
+            e, a = float(r[est_col]), float(r[act_col])
             if e > 0 and a > 0:
                 rows.append((r.get("category") or "other", e, a))
         except (KeyError, ValueError):
@@ -46,7 +47,7 @@ def summarize(rows, prior_tau=0.5):
         r = [math.log(a / e) for e, a in xs]
         n = len(r)
         m = st.mean(r)
-        s = st.stdev(r) if n > 1 else s_pool
+        s = max(st.stdev(r) if n > 1 else s_pool, 0.1)  # floor avoids div-by-zero on identical ratios
         # empirical-Bayes / normal-normal shrinkage of category mean toward global mean
         w = (n / s**2) / (n / s**2 + 1 / prior_tau**2) if c != "ALL" else 1.0
         m_post = w * m + (1 - w) * mu0
@@ -60,7 +61,7 @@ def summarize(rows, prior_tau=0.5):
             if not rest:
                 continue
             mloo = st.mean(rest)
-            sl = st.stdev(rest) if len(rest) > 1 else s_pool
+            sl = max(st.stdev(rest) if len(rest) > 1 else s_pool, 0.1)
             wl = (len(rest) / sl**2) / (len(rest) / sl**2 + 1 / prior_tau**2) if c != "ALL" else 1.0
             pred = e * math.exp(wl * mloo + (1 - wl) * mu0)
             mre_cal.append(abs(a - pred) / a)
@@ -100,9 +101,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv")
     ap.add_argument("--plan", default="", help="cat:naive_min,cat:naive_min,...")
+    ap.add_argument("--est-col", default="est_naive_min", help="estimate column to calibrate")
+    ap.add_argument("--actual-col", default="actual_active_min")
     ap.add_argument("--tau", type=float, default=0.5, help="prior SD of category log-bias around global")
     a = ap.parse_args()
-    rows = load(a.csv)
+    rows = load(a.csv, a.est_col, a.actual_col)
     if len(rows) < 3:
         raise SystemExit("need >= 3 usable rows")
     res = summarize(rows, a.tau)

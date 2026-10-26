@@ -2,19 +2,19 @@
 """Turn saved list_events dumps into a compact, deduped session timeline + time stats.
 
 Usage:
-  python3 timeline.py add  <session_id> <dump_file> [<dump_file> ...]   # merge pages into store
-  python3 timeline.py show <session_id> [--max-chars N]                 # print condensed timeline
-  python3 timeline.py stats <session_id> [--idle-min 15]                # print time stats JSON
+  python3 cloud_timeline.py add  <session_id> <dump_file> [<dump_file> ...]   # merge pages into store
+  python3 cloud_timeline.py show <session_id> [--max-chars N]                 # print condensed timeline
+  python3 cloud_timeline.py stats <session_id> [--idle-min 15]                # print time stats JSON
 
-Store: pilot/store/<session_id>.jsonl (one condensed event per line, deduped by uuid).
+Store: ./timeline_store/<session_id>.jsonl in the CURRENT directory (override with TIMELINE_STORE).
+Keep it outside any public repo: it holds transcript text.
 Dump files are the text files the list_events tool saved (wrapped in <other-session> tags)
 or plain JSON with {"ccr":{"data":[...]}} / {"data":[...]}.
 """
 import json, os, sys, re
 from datetime import datetime
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-STORE = os.path.join(HERE, "store")
+STORE = os.environ.get("TIMELINE_STORE") or os.path.join(os.getcwd(), "timeline_store")
 os.makedirs(STORE, exist_ok=True)
 
 
